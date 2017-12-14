@@ -1,48 +1,45 @@
 ﻿using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 [RequireComponent(typeof(LineRenderer))]
 public class Laser : MonoBehaviour {
     public float maxLength;
-    public Laser laserPrefab;
-    private Laser next;
 
-    [NonSerialized] public bool hit;
-    [NonSerialized] public RaycastHit hitInfo;
     private LineRenderer lineRenderer;
-    public Vector3 EndPos { get { return hit ? hitInfo.point : transform.position + transform.forward * maxLength; } }
-    public float MoveDist { get { return hit ? (hitInfo.point - transform.position).magnitude : maxLength; } }
 
 	void OnEnable() {
 	    lineRenderer = GetComponent<LineRenderer>();
 	}
 	
 	void Update() {
-	    hit = Physics.Raycast(transform.position + transform.forward*0.01f, transform.forward, out hitInfo, maxLength);
 
-        lineRenderer.SetPosition(0, transform.position);
-        lineRenderer.SetPosition(1, EndPos);
+	    bool hit;
+        List<Vector3> list = new List<Vector3>();
+	    Vector3 pos = transform.position;
+	    Vector3 dir = transform.forward.normalized;
+        list.Add(Vector3.zero);
+	    float dist = maxLength;
 
-	    if (hit) {
-	        if (hitInfo.transform.tag == "Mirror") {
-                Quaternion childRotation = Quaternion.LookRotation(Quaternion.FromToRotation(transform.forward, hitInfo.normal) * -hitInfo.normal);
+        while (dist > 0) {
+            RaycastHit hitInfo;
 
-                SetChild(hitInfo.point, childRotation);
-	        } else {
-	            if (next) Destroy(next);
+            if (!Physics.Raycast(pos + dir * 0.01f, dir, out hitInfo, dist))
+            {
+	            list.Add(pos + dir*dist);
+                break;
 	        }
+
+	        dist -= (pos - hitInfo.point).magnitude;
+	        list.Add(transform.InverseTransformPoint(pos = hitInfo.point));
+
+	        if (hitInfo.collider.tag != "Mirror")
+                break;
+
+	        dir -= 2*Vector3.Project(dir, hitInfo.normal);
 	    }
+
+        lineRenderer.positionCount = list.Count;
+        lineRenderer.SetPositions(list.ToArray());
 	}
-
-    private void SetChild(Vector3 position, Quaternion rotation)
-    {
-        if (next == null)
-        {
-            next = Instantiate(laserPrefab);
-            next.transform.SetParent(transform);
-        }
-
-        next.transform.position = position;
-        next.transform.rotation = rotation;
-    }
 }
